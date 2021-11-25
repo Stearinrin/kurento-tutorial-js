@@ -65,6 +65,7 @@ function setIceCandidateCallbacks(webRtcPeer, webRtcEp, onerror) {
 var webRtcPeer;
 var pipeline;
 var webRtcEndpoint;
+var json_dump = [];
 
 window.addEventListener('load', function() {
   console = new Console();
@@ -152,16 +153,25 @@ window.addEventListener('load', function() {
 function activateStatsTimeout() {
   setTimeout(function() {
     if (!webRtcPeer || !pipeline) return;
-    printStats();
+
+    var now = new Date();
+    var time_data = { 
+      'timestamp': now.getTime(), 
+      'stats': printStats()
+    }
+    json_dump.push(time_data)
+
+    // printStats();
     activateStatsTimeout();
   }, 1000);
 }
 
 function printStats() {
-
-  getBrowserOutgoingVideoStats(webRtcPeer, function(error, stats) {
+  var stats = {};
+  
+  stats['browser_send'] = getBrowserOutgoingVideoStats(webRtcPeer, function(error, stats) {
     if (error) return console.log("Warning: could not gather browser outgoing stats: " + error);
-
+      
     document.getElementById('browserOutgoingSsrc').innerHTML = stats.ssrc;
     document.getElementById('browserPacketsSent').innerHTML = stats.packetsSent;
     document.getElementById('browserBytesSent').innerHTML = stats.bytesSent;
@@ -174,11 +184,10 @@ function printStats() {
     document.getElementById('browserOutgoingAvailableBitrate').innerHTML = stats.availableBitrate;
   });
 
-  getMediaElementStats(webRtcEndpoint, 'inboundrtp', 'VIDEO', function(error, stats) {
+  stats['kms_recv'] = getKMSIncomingVideoStats(webRtcEndpoint, function(error, stats) {
     if (error) return console.log("Warning: could not gather WebRtcEndpoint input stats: " + error);
 
     document.getElementById('kmsIncomingSsrc').innerHTML = stats.ssrc;
-
     document.getElementById('kmsBytesReceived').innerHTML = stats.bytesReceived;
     document.getElementById('kmsPacketsReceived').innerHTML = stats.packetsReceived;
     document.getElementById('kmsPliSent').innerHTML = stats.pliCount;
@@ -190,8 +199,8 @@ function printStats() {
     document.getElementById('kmsRembSend').innerHTML = stats.remb;
   });
 
-  getBrowserIncomingVideoStats(webRtcPeer, function(error, stats) {
-    if (error) return console.log("Warning: could not gather stats: " + error);
+  stats['browser_recv'] = getBrowserIncomingVideoStats(webRtcPeer, function(error, stats) {
+    if (error) return console.log("Warning: could not gather browser incoming stats: " + error);
 
     document.getElementById('browserIncomingSsrc').innerHTML = stats.ssrc;
     document.getElementById('browserPacketsReceived').innerHTML = stats.packetsReceived;
@@ -205,8 +214,8 @@ function printStats() {
     document.getElementById('browserIncomingAvailableBitrate').innerHTML = stats.availableBitrate;
   });
 
-  getMediaElementStats(webRtcEndpoint, 'outboundrtp', 'VIDEO', function(error, stats){
-    if (error) return console.log("Warning: could not gather WebRtcEndpoint input stats: " + error);
+  stats['kms_send'] = getKMSOutgoingVideoStats(webRtcEndpoint, function(error, stats){
+    if (error) return console.log("Warning: could not gather WebRtcEndpoint output stats: " + error);
 
     document.getElementById('kmsOutogingSsrc').innerHTML = stats.ssrc;
     document.getElementById('kmsBytesSent').innerHTML = stats.bytesSent;
@@ -218,10 +227,14 @@ function printStats() {
     document.getElementById('kmsRembReceived').innerHTML = stats.remb;
   });
 
-  getMediaElementStats(webRtcEndpoint, 'endpoint', 'VIDEO', function(error, stats){
+  stats['latency'] = getEndpointVideoStats(webRtcEndpoint, function(error, stats){
     if(error) return console.log("Warning: could not gather webRtcEndpoint endpoint stats: " + error);
+
     document.getElementById('e2eLatency').innerHTML = stats.videoE2ELatency / 1000000 + " milliseconds";
+
   });
+
+  return stats;
 }
 
 function getBrowserOutgoingVideoStats(webRtcPeer, callback) {
@@ -233,6 +246,7 @@ function getBrowserOutgoingVideoStats(webRtcPeer, callback) {
   let localVideoTrack = localVideoStream.getVideoTracks()[0];
   if (!localVideoTrack) return callback("Non existent local video track: cannot read stats");
 
+  let rtrn = {};
   peerConnection
     .getStats(localVideoTrack)
     .then(function(stats) {
@@ -264,6 +278,7 @@ function getBrowserOutgoingVideoStats(webRtcPeer, callback) {
       }
       const reportRtp = reportsRtp[0];
 
+      console.log("browser out " + reportRtp)
       // RTCStats
       // https://w3c.github.io/webrtc-stats/#dom-rtcstats
       retVal["timestamp"] = reportRtp.timestamp;
@@ -293,12 +308,27 @@ function getBrowserOutgoingVideoStats(webRtcPeer, callback) {
         retVal["iceRoundTripTime"] = matchCandidatePairs[0].currentRoundTripTime;
         retVal["availableBitrate"] = matchCandidatePairs[0].availableOutgoingBitrate;
       }
+      
+      // data log
+      rtrn['timestamp'] = retVal["timestamp"]
+      rtrn['ssrc'] = retVal["ssrc"]
+      rtrn['packets'] = retVal["packetsSent"]
+      rtrn['bytes'] = retVal["bytesSent"]
+      rtrn['nack'] = retVal["nackCount"]
+      rtrn['fir'] = retVal["firCount"]
+      rtrn['pli'] = retVal["pliCount"]
+      rtrn['sli'] = retVal["sliCount"]
+      rtrn['ice_rtt'] = retVal["iceRoundTripTime"]
+      rtrn['remb'] = retVal["availableBitrate"]
 
       return callback(null, retVal);
     })
     .catch(function(err) {
+      rtrn['error'] = err 
       return callback(err, null);
     });
+  
+  return rtrn;
 }
 
 function getBrowserIncomingVideoStats(webRtcPeer, callback) {
@@ -310,6 +340,7 @@ function getBrowserIncomingVideoStats(webRtcPeer, callback) {
   var remoteVideoTrack = remoteVideoStream.getVideoTracks()[0];
   if (!remoteVideoTrack) return callback("Non existent remote video track: cannot read stats");
 
+  let rtrn = {};
   peerConnection
     .getStats(remoteVideoTrack)
     .then(function(stats) {
@@ -341,6 +372,7 @@ function getBrowserIncomingVideoStats(webRtcPeer, callback) {
       }
       const reportRtp = reportsRtp[0];
 
+      console.log("browser in " + reportRtp)
       // RTCStats
       // https://w3c.github.io/webrtc-stats/#dom-rtcstats
       retVal["timestamp"] = reportRtp.timestamp;
@@ -372,12 +404,29 @@ function getBrowserIncomingVideoStats(webRtcPeer, callback) {
         retVal["iceRoundTripTime"] = matchCandidatePairs[0].currentRoundTripTime;
         retVal["availableBitrate"] = matchCandidatePairs[0].availableIncomingBitrate;
       }
+      
+      // data log
+      rtrn['timestamp'] = retVal["timestamp"]
+      rtrn['ssrc'] = retVal["ssrc"]
+      rtrn['packets'] = retVal["packetsReceived"]
+      rtrn['bytes'] = retVal["bytesReceived"]
+      rtrn['packetsLost'] = retVal["packetsLost"]
+      rtrn['jitter'] = retVal["jitter"]
+      rtrn['nack'] = retVal["nackCount"]
+      rtrn['fir'] = retVal["firCount"]
+      rtrn['pli'] = retVal["pliCount"]
+      rtrn['sli'] = retVal["sliCount"]
+      rtrn['ice_rtt'] = retVal["iceRoundTripTime"]
+      rtrn['remb'] = retVal["availableBitrate"]
 
       return callback(null, retVal);
     })
     .catch(function(err) {
+      rtrn['error'] = err
       return callback(err, null);
     });
+
+  return rtrn;
 }
 
 /*
@@ -416,6 +465,103 @@ function getMediaElementStats(mediaElement, statsType, mediaType, callback){
   });
 }
 
+function getKMSIncomingVideoStats(mediaElement, callback) {
+  if (!mediaElement) return callback('Cannot get stats from null Media Element');
+
+  let rtrn = {};
+  mediaElement.getStats('VIDEO', function(error, statsMap){
+    if(error) return callback(error);
+    for(var key in statsMap){
+      if(!statsMap.hasOwnProperty(key)) continue; //do not dig in prototypes properties
+
+      stats = statsMap[key];
+      if(stats.type != 'inboundrtp') continue; //look for the type we want
+
+      // data log
+      console.log(stats)
+      rtrn['timestamp'] = stats["timestamp"]
+      rtrn['timestampMillis'] = stats["timestampMillis"]
+      rtrn['ssrc'] = stats["ssrc"]
+      rtrn['packets'] = stats["packetsReceived"]
+      rtrn['bytes'] = stats["bytesReceived"]
+      rtrn['packetsLost'] = stats["packetsLost"]
+      rtrn['fractionLost'] = stats["fractionLost"]
+      rtrn['jitter'] = stats["jitter"]
+      rtrn['nack'] = stats["nackCount"]
+      rtrn['fir'] = stats["firCount"]
+      rtrn['pli'] = stats["pliCount"]
+      rtrn['sli'] = stats["sliCount"]
+      rtrn['remb'] = stats["remb"]
+
+      return callback(null, stats);
+    }
+    return callback('Could not find inboundrtp:VIDEO stats in element ' + mediaElement.id);
+  });
+
+  return rtrn;
+}
+
+function getKMSOutgoingVideoStats(mediaElement, callback) {
+  if (!mediaElement) return callback('Cannot get stats from null Media Element');
+
+  let rtrn = {};
+  mediaElement.getStats('VIDEO', function(error, statsMap){
+    if(error) return callback(error);
+    for(var key in statsMap){
+      if(!statsMap.hasOwnProperty(key)) continue; //do not dig in prototypes properties
+
+      stats = statsMap[key];
+      if(stats.type != 'outboundrtp') continue; //look for the type we want
+
+      // data log
+      console.log(stats)
+      rtrn['timestamp'] = stats["timestamp"]
+      rtrn['timestampMillis'] = stats["timestampMillis"]
+      rtrn['ssrc'] = stats["ssrc"]
+      rtrn['packets'] = stats["packetsSent"]
+      rtrn['bytes'] = stats["bytesSent"]
+      rtrn['nack'] = stats["nackCount"]
+      rtrn['fir'] = stats["firCount"]
+      rtrn['pli'] = stats["pliCount"]
+      rtrn['sli'] = stats["sliCount"]
+      rtrn['rtt'] = stats["roundTripTime"]
+      rtrn['remb'] = stats["remb"]
+
+      return callback(null, stats);
+    }
+    return callback('Could not find outboundrtp:VIDEO stats in element ' + mediaElement.id);
+  });
+
+  return rtrn;
+}
+
+function getEndpointVideoStats(mediaElement, callback) {
+  if (!mediaElement) return callback('Cannot get stats from null Media Element');
+
+  let rtrn = {};
+  mediaElement.getStats('VIDEO', function(error, statsMap){
+    if(error) return callback(error);
+    for(var key in statsMap){
+      if(!statsMap.hasOwnProperty(key)) continue; //do not dig in prototypes properties
+
+      stats = statsMap[key];
+      if(stats.type != 'endpoint') continue; //look for the type we want
+
+      // data log
+      console.log(stats)
+      rtrn['timestamp'] = stats["timestamp"]
+      rtrn['timestampMillis'] = stats["timestampMillis"]
+      rtrn['inputLatency'] = stats["inputVideoLatency"]
+      rtrn['E2ELatency'] = stats["videoE2ELatency"]
+
+      return callback(null, stats);
+    }
+    return callback('Could not find endpoint:VIDEO stats in element ' + mediaElement.id);
+  });
+
+  return rtrn;
+}
+
 //Aux function used for printing stats associated to a track.
 function listStats(peerConnection, webRtcEndpoint) {
   var localVideoTrack = peerConnection.getLocalStreams()[0].getVideoTracks()[0];
@@ -451,6 +597,8 @@ function stop() {
   }
 
   hideSpinner(videoInput, videoOutput);
+
+  dump();
 }
 
 function onError(error) {
@@ -473,6 +621,39 @@ function hideSpinner() {
     arguments[i].poster = 'img/webrtc.png';
     arguments[i].style.background = '';
   }
+}
+
+function dump() {
+  console.log(json_dump);
+  if (json_dump.length === 0) return;
+  
+  // download the stats file
+  let now = new Date();
+  const blob = new Blob([JSON.stringify(json_dump, null, '  ')], {type: 'application/json'});
+  const link = document.createElement('a');
+  link.href = window.URL.createObjectURL(blob);
+  link.download = 'webrtc_kurento_stats_' 
+    + now.getFullYear()
+    + now.getMonth()
+    + now.getDay()
+    + now.getHours()
+    + now.getMinutes()
+    + now.getSeconds()
+    + '.json';
+  link.click();
+  
+  // 直接fsはダメ、ダウンロードさせるようにすること
+  // const fs = require('fs');
+  // fs.writeFileSync('webrtc_statistics_' 
+  //   + now.getFullYear() 
+  //   + now.getMonth()
+  //   + now.getDay()
+  //   + now.getHours()
+  //   + now.getMinutes()
+  //   + now.getSeconds(),
+  // JSON.stringify(json_dump));
+
+  console.log("JSON data dumped");
 }
 
 /**
