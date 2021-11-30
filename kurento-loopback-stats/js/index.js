@@ -186,32 +186,32 @@ function printStats() {
     document.getElementById('browserOutgoingAvailableBitrate').innerHTML = stats.availableBitrate;
   });
 
-  stats['kms_recv'] = getKMSIncomingStats(webRtcEndpoint, function(error, stats) {
+  stats['kms_recv'] = getKmsIncomingStats(webRtcEndpoint, function(error, stats) {
     if (error) return console.log("Warning: could not gather WebRtcEndpoint input stats: " + error);
     if (!stats) return;
 
     document.getElementById('kmsIncomingSsrc').innerHTML = stats.ssrc;
-    document.getElementById('kmsBytesReceived').innerHTML = stats.bytesReceived;
     document.getElementById('kmsPacketsReceived').innerHTML = stats.packetsReceived;
-    document.getElementById('kmsPliSent').innerHTML = stats.pliCount;
-    document.getElementById('kmsFirSent').innerHTML = stats.firCount;
-    document.getElementById('kmsNackSent').innerHTML = stats.nackCount;
-    document.getElementById('kmsJitter').innerHTML = stats.jitter;
+    document.getElementById('kmsBytesReceived').innerHTML = stats.bytesReceived;
     document.getElementById('kmsPacketsLost').innerHTML = stats.packetsLost;
     document.getElementById('kmsFractionLost').innerHTML = stats.fractionLost;
+    document.getElementById('kmsJitter').innerHTML = stats.jitter;
+    document.getElementById('kmsNackSent').innerHTML = stats.nackCount;
+    document.getElementById('kmsFirSent').innerHTML = stats.firCount;
+    document.getElementById('kmsPliSent').innerHTML = stats.pliCount;
     document.getElementById('kmsRembSend').innerHTML = stats.remb;
   });
 
-  stats['kms_send'] = getKMSOutgoingStats(webRtcEndpoint, function(error, stats){
+  stats['kms_send'] = getKmsOutgoingStats(webRtcEndpoint, function(error, stats){
     if (error) return console.log("Warning: could not gather WebRtcEndpoint output stats: " + error);
     if (!stats) return;
 
     document.getElementById('kmsOutogingSsrc').innerHTML = stats.ssrc;
-    document.getElementById('kmsBytesSent').innerHTML = stats.bytesSent;
     document.getElementById('kmsPacketsSent').innerHTML = stats.packetsSent;
-    document.getElementById('kmsPliReceived').innerHTML = stats.pliCount;
-    document.getElementById('kmsFirReceived').innerHTML = stats.firCount;
+    document.getElementById('kmsBytesSent').innerHTML = stats.bytesSent;
     document.getElementById('kmsNackReceived').innerHTML = stats.nackCount;
+    document.getElementById('kmsFirReceived').innerHTML = stats.firCount;
+    document.getElementById('kmsPliReceived').innerHTML = stats.pliCount;
     document.getElementById('kmsRtt').innerHTML = stats.roundTripTime;
     document.getElementById('kmsRembReceived').innerHTML = stats.remb;
   });
@@ -485,7 +485,7 @@ function getMediaElementStats(mediaElement, statsType, mediaType, callback){
   });
 }
 
-function getKMSIncomingStats(mediaElement, callback) {
+function getKmsIncomingStats(mediaElement, callback) {
   if (!mediaElement) return callback('Cannot get stats from null Media Element');
 
   let rtrn = {};
@@ -501,7 +501,7 @@ function getKMSIncomingStats(mediaElement, callback) {
       // data log
       console.log("---------- [kms audio in] ----------");
       console.log(stats);
-      rtrn['audio'] = stats;
+      rtrn['audio'] = refineKmsIncomingStats(stats);
 
       return callback(null, null);
     }
@@ -519,7 +519,7 @@ function getKMSIncomingStats(mediaElement, callback) {
       // data log
       console.log("---------- [kms video in] ----------");
       console.log(stats);
-      rtrn['video'] = stats;
+      rtrn['video'] = refineKmsIncomingStats(stats);
 
       return callback(null, stats);
     }
@@ -529,7 +529,27 @@ function getKMSIncomingStats(mediaElement, callback) {
   return rtrn;
 }
 
-function getKMSOutgoingStats(mediaElement, callback) {
+function refineKmsIncomingStats(stats) {
+  let rtrn = {};
+
+  rtrn['timestamp'] = stats.timestampMillis;
+  rtrn['ssrc'] = stats.ssrc;
+  rtrn['packetsReceived'] = stats.packetsReceived;
+  rtrn['bytesReceived'] = stats.bytesReceived;
+  rtrn['packetsLost'] = stats.packetsLost;
+  rtrn['fractionLost'] = stats.fractionLost;
+  rtrn['jitter'] = stats.jitter;
+  rtrn['nackCount'] = stats.nackCount;
+  rtrn['firCount'] = stats.firCount;
+  rtrn['pliCount'] = stats.pliCount;
+  rtrn['sliCount'] = stats.sliCount;
+  rtrn['remb'] = stats.remb;
+  rtrn['isRemote'] = stats.isRemote;
+
+  return rtrn;
+}
+
+function getKmsOutgoingStats(mediaElement, callback) {
   if (!mediaElement) return callback('Cannot get stats from null Media Element');
 
   let rtrn = {};
@@ -545,7 +565,7 @@ function getKMSOutgoingStats(mediaElement, callback) {
       // data log
       console.log("---------- [kms audio out] ----------");
       console.log(stats);
-      rtrn['audio'] = stats;
+      rtrn['audio'] = refineKmsOutgoingStats(stats);
 
       return callback(null, null);
     }
@@ -563,12 +583,33 @@ function getKMSOutgoingStats(mediaElement, callback) {
       // data log
       console.log("---------- [kms video out] ----------");
       console.log(stats);
-      rtrn['video'] = stats;
+      rtrn['video'] = refineKmsOutgoingStatsForDump(stats);
 
       return callback(null, stats);
     }
     return callback('Could not find outboundrtp:VIDEO stats in element ' + mediaElement.id);
   });
+
+  return rtrn;
+}
+
+function refineKmsOutgoingStatsForDump(stats) {
+  let rtrn = {};
+
+  rtrn['timestamp'] = stats.timestampMillis;
+  rtrn['ssrc'] = stats.ssrc;
+  rtrn['packetsSent'] = stats.packetsSent;
+  rtrn['bytesSent'] = stats.bytesSent;
+  rtrn['packetsLost'] = stats.packetsLost;
+  rtrn['fractionLost'] = stats.fractionLost;
+  rtrn['nackCount'] = stats.nackCount;
+  rtrn['firCount'] = stats.firCount;
+  rtrn['pliCount'] = stats.pliCount;
+  rtrn['sliCount'] = stats.sliCount;
+  rtrn['roundTripTime'] = stats.roundTripTime;
+  rtrn['remb'] = stats.remb;
+  rtrn['targetBitrate'] = stats.targetBitrate;
+  rtrn['isRemote'] = stats.isRemote;
 
   return rtrn;
 }
