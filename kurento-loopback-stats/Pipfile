@@ -1,0 +1,13 @@
+[[source]]
+url = "https://pypi.python.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+itu-p1203 = {git = "https://github.com/itu-p1203/itu-p1203.git", version = "1.8.0"}
+p1203pv-extended = {git = "https://github.com/Telecommunication-Telemedia-Assessment/itu-p1203-codecextension.git", version = "0.4.0"}
+
+[dev-packages]
+
+[requires]
+python_version = "3.8"
