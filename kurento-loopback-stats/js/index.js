@@ -156,8 +156,8 @@ function activateStatsTimeout() {
 
     var now = new Date();
     var time_data = { 
-      'timestamp': now.getTime(), 
-      'stats': printStats()
+      'stats': printStats(),
+      'timestamp': now.getTime()
     }
     json_dump.push(time_data)
 
@@ -188,6 +188,7 @@ function printStats() {
 
   stats['kms_recv'] = getKMSIncomingStats(webRtcEndpoint, function(error, stats) {
     if (error) return console.log("Warning: could not gather WebRtcEndpoint input stats: " + error);
+    if (!stats) return;
 
     document.getElementById('kmsIncomingSsrc').innerHTML = stats.ssrc;
     document.getElementById('kmsBytesReceived').innerHTML = stats.bytesReceived;
@@ -203,6 +204,7 @@ function printStats() {
 
   stats['kms_send'] = getKMSOutgoingStats(webRtcEndpoint, function(error, stats){
     if (error) return console.log("Warning: could not gather WebRtcEndpoint output stats: " + error);
+    if (!stats) return;
 
     document.getElementById('kmsOutogingSsrc').innerHTML = stats.ssrc;
     document.getElementById('kmsBytesSent').innerHTML = stats.bytesSent;
@@ -231,6 +233,7 @@ function printStats() {
 
   stats['latency'] = getEndpointStats(webRtcEndpoint, function(error, stats){
     if(error) return console.log("Warning: could not gather webRtcEndpoint endpoint stats: " + error);
+    if(!stats) return;
 
     document.getElementById('e2eLatency').innerHTML = stats.videoE2ELatency / 1000000 + " milliseconds";
 
@@ -332,6 +335,7 @@ function getBrowserOutgoingVideoStats(webRtcPeer, callback) {
       rtrn['sli'] = retVal["sliCount"]
       rtrn['ice_rtt'] = retVal["iceRoundTripTime"]
       rtrn['remb'] = retVal["availableBitrate"]
+      // rtrn = retVal;
 
       return callback(null, retVal);
     })
@@ -431,6 +435,7 @@ function getBrowserIncomingVideoStats(webRtcPeer, callback) {
       rtrn['sli'] = retVal["sliCount"]
       rtrn['ice_rtt'] = retVal["iceRoundTripTime"]
       rtrn['remb'] = retVal["availableBitrate"]
+      // rtrn = retVal;
 
       return callback(null, retVal);
     })
@@ -458,6 +463,8 @@ mediaType: one of
   AUDIO
   VIDEO
 */
+
+// Legacy from master
 function getMediaElementStats(mediaElement, statsType, mediaType, callback){
   if (!mediaElement) return callback('Cannot get stats from null Media Element');
   if(!statsType) return callback('Cannot get stats with undefined statsType')
@@ -482,6 +489,25 @@ function getKMSIncomingStats(mediaElement, callback) {
   if (!mediaElement) return callback('Cannot get stats from null Media Element');
 
   let rtrn = {};
+
+  mediaElement.getStats('AUDIO', function(error, statsMap){
+    if(error) return callback(error);
+    for(var key in statsMap){
+      if(!statsMap.hasOwnProperty(key)) continue; //do not dig in prototypes properties
+
+      stats = statsMap[key];
+      if(stats.type != 'inboundrtp') continue; //look for the type we want
+
+      // data log
+      console.log("---------- [kms audio in] ----------");
+      console.log(stats);
+      rtrn['audio'] = stats;
+
+      return callback(null, null);
+    }
+    return callback('Could not find inboundrtp:AUDIO stats in element ' + mediaElement.id);
+  });
+
   mediaElement.getStats('VIDEO', function(error, statsMap){
     if(error) return callback(error);
     for(var key in statsMap){
@@ -491,21 +517,9 @@ function getKMSIncomingStats(mediaElement, callback) {
       if(stats.type != 'inboundrtp') continue; //look for the type we want
 
       // data log
-      console.log("---------- [kms in] ----------");
+      console.log("---------- [kms video in] ----------");
       console.log(stats);
-      rtrn['timestamp'] = stats["timestamp"]
-      rtrn['timestampMillis'] = stats["timestampMillis"]
-      rtrn['ssrc'] = stats["ssrc"]
-      rtrn['packets'] = stats["packetsReceived"]
-      rtrn['bytes'] = stats["bytesReceived"]
-      rtrn['packetsLost'] = stats["packetsLost"]
-      rtrn['fractionLost'] = stats["fractionLost"]
-      rtrn['jitter'] = stats["jitter"]
-      rtrn['nack'] = stats["nackCount"]
-      rtrn['fir'] = stats["firCount"]
-      rtrn['pli'] = stats["pliCount"]
-      rtrn['sli'] = stats["sliCount"]
-      rtrn['remb'] = stats["remb"]
+      rtrn['video'] = stats;
 
       return callback(null, stats);
     }
@@ -519,6 +533,25 @@ function getKMSOutgoingStats(mediaElement, callback) {
   if (!mediaElement) return callback('Cannot get stats from null Media Element');
 
   let rtrn = {};
+
+  mediaElement.getStats('AUDIO', function(error, statsMap){
+    if(error) return callback(error);
+    for(var key in statsMap){
+      if(!statsMap.hasOwnProperty(key)) continue; //do not dig in prototypes properties
+
+      stats = statsMap[key];
+      if(stats.type != 'outboundrtp') continue; //look for the type we want
+
+      // data log
+      console.log("---------- [kms audio out] ----------");
+      console.log(stats);
+      rtrn['audio'] = stats;
+
+      return callback(null, null);
+    }
+    return callback('Could not find outboundrtp:AUDIO stats in element ' + mediaElement.id);
+  });
+
   mediaElement.getStats('VIDEO', function(error, statsMap){
     if(error) return callback(error);
     for(var key in statsMap){
@@ -528,19 +561,9 @@ function getKMSOutgoingStats(mediaElement, callback) {
       if(stats.type != 'outboundrtp') continue; //look for the type we want
 
       // data log
-      console.log("---------- [kms out] ----------");
+      console.log("---------- [kms video out] ----------");
       console.log(stats);
-      rtrn['timestamp'] = stats["timestamp"]
-      rtrn['timestampMillis'] = stats["timestampMillis"]
-      rtrn['ssrc'] = stats["ssrc"]
-      rtrn['packets'] = stats["packetsSent"]
-      rtrn['bytes'] = stats["bytesSent"]
-      rtrn['nack'] = stats["nackCount"]
-      rtrn['fir'] = stats["firCount"]
-      rtrn['pli'] = stats["pliCount"]
-      rtrn['sli'] = stats["sliCount"]
-      rtrn['rtt'] = stats["roundTripTime"]
-      rtrn['remb'] = stats["remb"]
+      rtrn['video'] = stats;
 
       return callback(null, stats);
     }
@@ -554,6 +577,28 @@ function getEndpointStats(mediaElement, callback) {
   if (!mediaElement) return callback('Cannot get stats from null Media Element');
 
   let rtrn = {};
+
+  mediaElement.getStats('AUDIO', function(error, statsMap){
+    if(error) return callback(error);
+    for(var key in statsMap){
+      if(!statsMap.hasOwnProperty(key)) continue; //do not dig in prototypes properties
+
+      stats = statsMap[key];
+      if(stats.type != 'endpoint') continue; //look for the type we want
+
+      // data log
+      console.log("---------- [endpoint audio] ----------");
+      console.log(stats);
+      rtrn['audioTimestamp'] = stats["timestampMillis"]
+      rtrn['inputAudioLatency'] = stats["inputAudioLatency"]
+      rtrn['audioE2ELatency'] = stats["audioE2ELatency"]
+      // rtrn['audio'] = stats;
+
+      return callback(null, null);
+    }
+    return callback('Could not find endpoint:AUDIO stats in element ' + mediaElement.id);
+  });
+
   mediaElement.getStats('VIDEO', function(error, statsMap){
     if(error) return callback(error);
     for(var key in statsMap){
@@ -563,12 +608,12 @@ function getEndpointStats(mediaElement, callback) {
       if(stats.type != 'endpoint') continue; //look for the type we want
 
       // data log
-      console.log("---------- [endpoint] ----------");
+      console.log("---------- [endpoint video] ----------");
       console.log(stats)
-      rtrn['timestamp'] = stats["timestamp"]
-      rtrn['timestampMillis'] = stats["timestampMillis"]
-      rtrn['inputLatency'] = stats["inputVideoLatency"]
-      rtrn['E2ELatency'] = stats["videoE2ELatency"]
+      rtrn['videoTimestamp'] = stats["timestampMillis"]
+      rtrn['inputVideoLatency'] = stats["inputVideoLatency"]
+      rtrn['videoE2ELatency'] = stats["videoE2ELatency"]
+      // rtrn['video'] = stats;
 
       return callback(null, stats);
     }
