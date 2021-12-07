@@ -565,7 +565,7 @@ function getKmsOutgoingStats(mediaElement, callback) {
       // data log
       console.log("---------- [kms audio out] ----------");
       console.log(stats);
-      rtrn['audio'] = refineKmsOutgoingStats(stats);
+      rtrn['audio'] = refineKmsOutgoingStatsForDump(stats);
 
       return callback(null, null);
     }
