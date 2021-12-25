@@ -1,4 +1,8 @@
 
+## Result image
+*.png
+webrtc_kurento_stats*
+
 # Created by https://www.toptal.com/developers/gitignore/api/node,bower,python
 # Edit at https://www.toptal.com/developers/gitignore?templates=node,bower,python
 
